@@ -1,0 +1,5 @@
+.env 
+discord.env
+postgres.py
+test_db.py
+__pycache__/

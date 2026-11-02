@@ -1,0 +1,5 @@
+.env
+discord.env
+__pycache__
+.git
+*.docx
