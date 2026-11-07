@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from datetime import timedelta
 from better_profanity import profanity
+from detection import find_word
 from dotenv import load_dotenv
 
 from database import create_pool
@@ -19,31 +20,31 @@ WELCOME_CHANNEL_ID = 1541510550411026485
 TEST_GUILD_ID = 1539913747471011880
 
 
-# ---------- helpers ----------
+# helpers
 
 async def ensure_guild(guild_id: int): #Sets Up Guild Settings
     """Make sure every server has a settings row."""
     async with bot.pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO guild_settings (guild_id) VALUES ($1) ON CONFLICT (guild_id) DO NOTHING",
+            "INSERT INTO guild_settings (guild_id) VALUES ($1) ON CONFLICT (guild_id) DO NOTHING", #Displays the Guid Serring in The Database, If the Guild is Already in the Database, it Does Nothing.
             guild_id,
         )
 
 
-def find_word(text: str):
-    """better_profanity only says yes/no, so compare the original with the censored text to find the word."""
-    censored = profanity.censor(text)
-    for original, hidden in zip(text.split(), censored.split()):
-        if original != hidden:
-            return original.lower()
-    return "unknown"
+#def find_word(text: str):
+    #"""better_profanity only says yes/no, so compare the original with the censored text to find the word."""
+    #censored = profanity.censor(text)
+    #for original, hidden in zip(text.split(), censored.split()):
+       # if original != hidden:
+            #return original.lower()
+    #return "unknown"
 
 
-# ---------- events ----------
+
 
 @bot.event
 async def on_ready():
-    for g in bot.guilds:                      # create a settings row for servers the bot is already in
+    for g in bot.guilds:      # create a settings row for servers the bot is already in
         await ensure_guild(g.id)
 
     guild = discord.Object(id=TEST_GUILD_ID)
@@ -100,7 +101,7 @@ async def on_member_remove(member):
     await channel.send(f"{member} has Left {channel}, Avaible Members in {channel}: {count_member}")
 
 
-# ---------- buttons and slash commands ----------
+# buttons and slash commands
 
 class View(discord.ui.View):
     @discord.ui.button(label="I am Fine 😊", style=discord.ButtonStyle.success) #Displays a UI Button which shows the Text i am Fine 
@@ -110,7 +111,7 @@ class View(discord.ui.View):
         await asyncio.sleep(2)
         await interaction.followup.send(f"How May i Assist You Today {interaction.user.mention}")
 
-    @discord.ui.button(label="I am Not Fine 😭", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="I am Not Fine 😭", style=discord.ButtonStyle.danger) #Danger Displays a Red Button 
     async def not_fine(self, interaction: discord.Interaction, button: discord.ui.Button):
         await asyncio.sleep(2)
         await interaction.response.send_message(f"I am Sorry to Hear That {interaction.user.mention}")
@@ -125,7 +126,8 @@ async def hello(interaction: discord.Interaction):
 #Profanity Detection
 
 async def check_profanity(message: discord.Message):
-    if not profanity.contains_profanity(message.content):
+    word = find_word(message.content)
+    if word is None:
         return
 
     # 1. Load this server's settings
@@ -205,7 +207,7 @@ async def check_profanity(message: discord.Message):
             VALUES ($1, $2, $3, $4, $5, $6)
             """,
             message.guild.id, message.author.id, str(message.author), #As Soon as the User is Warned / Hits Strike Limit, the User Id is inserted into the Violation Table in The Database.
-            find_word(message.content), message.id, taken,
+            word, message.id, taken,
         )
 
 
