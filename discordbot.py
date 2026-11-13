@@ -6,8 +6,13 @@ from datetime import timedelta
 from better_profanity import profanity
 from detection import find_word
 from dotenv import load_dotenv
+import logging
+from discord import app_commands
 
 from database import create_pool
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv(r"C:\Users\themb\Desktop\Discord Bot Project\discord.env")
 
@@ -211,10 +216,54 @@ async def check_profanity(message: discord.Message):
         )
 
 
+@bot.tree.command(name="history", description="shows the history of the User") #Creates a slash Command which shows the History of The User /History
+@app_commands.describe(user="Shows The History of the User") #When the User Uses the /History Command, it Shows the Description of what the Command Does
+@app_commands.guild_only()
+@app_commands.checks.has_permissions(moderate_members = True)
+async def history(interaction: discord.Interaction, user: discord.User):
+
+    rows = await bot.pool.fetch(
+        """
+        SELECT matched_word, action_taken, created_at
+        FROM violations
+        WHERE guild_id = $1 AND user_id = $2
+        ORDER BY created_at DESC
+        LIMIT 10
+        """,
+        interaction.guild.id, user.id,
+    )
+
+
+    if not rows:
+        await interaction.response.send_message(f"{user.mention} has no violations.", ephemeral=True) #if it is Not in the Rows, means that the User is Not Guilty / Included in the violations Table.
+
+        return
+
+    lines = [] #Creates an Empty List which Will be used to Store the Violations Of the User.
+    for r in rows:
+        text = f"{r['created_at']:%Y-%m-%d %H:%M} | ** {r['matched_word']} ** | {r['action_taken']}" #This is The Text Format of how the Violations will Display
+        lines.append(text) #add The Test to the List
+
+    await interaction.response.send_message(f"Last {len(rows)} violations for {user.mention}: **\n" + "\n".join(lines),
+        ephemeral=True, 
+    )
+
+    @history.error
+    async def history_error(interaction: discord.interaction, error):
+        if isinstance(error, app_commands.errors.MissiingPermissions):
+            await interaction.response.send_message("You do not Have Permission to Use This", ephemeral=True)
+
+        else:
+            raise error
+
+
 @bot.event
 async def on_message(message):
     if not message.author.bot and message.guild is not None:
-        await check_profanity(message)
+        try:
+            await check_profanity(message)
+        except Exception:
+            logger.exception("Error Checking Profanity", message.id)
     await bot.process_commands(message)
 
 
