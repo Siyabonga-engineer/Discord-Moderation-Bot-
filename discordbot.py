@@ -269,6 +269,30 @@ async def on_message(message):
 
 #Start Discord In the Pool, Creates the Pool Which Resuses Existing Connection to the Database and Adds the Discord Bot to the Database.
 
+@bot.tree.command(name="unblock",description="unblocks a User from the Server") #Creates a Slash Command Which Unblocks a User From the Server
+@app_commands.describe(user="Unblocks the User From the Server") #As Soon as the User User the /unblock command, it shows a Descripition of What the Command Does
+@app_commands.guild_only()
+@app_commands.checks.has_permissions(moderate_members=True)
+
+async def unblock(interaction: discord.interactions, user : discord.User):
+    result = await bot.pool.execute(
+        "DELETE FROM blocked_users WHERE guild_id = $1 AND user_id = $2", interaction.guild.id, user.id #Deletes the User from The Blocked User Table in the Database, as Soon as the user is Unblocked, the User can Rejoin the Server will not Be Kicked out Automatically
+    )
+
+    if result == "DELETE 0": #if zero Rows are Deleted, it means that the User is not Blocked and The User is not in the Blocked Users Table, if Deleted Rows had to be 1 then the User is Blocked and The user is in the Blocked User Table.
+        await interaction.response.send_message(f"{user.mention} is not Blocked", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"{user.mention} has been unblocked and Can now Rejoin the Server", ephemeral=True)
+
+@unblock.error #before Discord Bot uses this Function it Checks from the @app_commands.checks.has_permission(moderate_members=Ture) whether the User is a Moderate Member or Not.
+async def unblock_error(interaction: discord.interactions, error): #if a User is not a Moderate_members, and tries to Use the /unblock command, it will Display an Error Message, saying that the User does not Have Permision to Use the Command.
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.send_message("You Do not Have Permission to Use This Command", ephemeral=True)
+    else:
+        raise error
+
+    
+
 async def main():
     bot.pool = await create_pool()
     try:
